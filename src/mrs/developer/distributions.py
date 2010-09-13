@@ -1,7 +1,9 @@
 import os
 import shutil
+import subprocess
 
 from subprocess import check_call
+from subprocess import Popen, PIPE
 
 from mrs.developer.base import Cmd
 from mrs.developer.base import logger
@@ -167,7 +169,7 @@ class List(Cmd):
         for channel in channels:
             if channel == "cloned":
                 cloned = Directory(os.path.join(self.root, 'eggs-mrsd'))
-                return [x.abspath for x in cloned.values()]
+                return dict((x.__name__, x.abspath) for x in cloned.values())
 
         pyscriptdir = PyScriptDir(os.path.join(self.root, 'bin'))
         return dict((x.__name__, x.abspath) for x in pyscriptdir.values())
@@ -252,20 +254,7 @@ class Patch(Cmd):
     """Patch management, list, generate and apply patches on bdist eggs.
     """
     def _initialize(self):
-        # read a list of available patches
-        patches_dir = self.cfg.setdefault('patches_dir', 'eggs-patches')
-        patches_dir = os.path.join(
-                self.root or os.curdir,
-                patches_dir,
-                )
-        if not os.path.isdir(patches_dir):
-            os.mkdir(patches_dir)
-        for pkg in os.listdir(patches_dir):
-            self.patches[pkg] = []
-            pkg_patch_dir = os.path.join(patches_dir, pkg)
-            for patch in os.listdir(pkg_patch_dir):
-                patch = os.path.abspath(patch)
-                self.patches[pkg].append(patch)
+        self.cfg.setdefault('patches_dir', 'eggs-patches')
 
     def init_argparser(self, parser):
         """Add our arguments to a parser
@@ -302,25 +291,76 @@ class Patch(Cmd):
     def list(self):
         """List patches.
         """
-        return self.patches
+        return [x for x in Directory(self.patches_dir)]
 
-    def generate(self, namespace):
+    def generate(self):
         """Generate patches from customized bdists.
+
+        Limitations for now: one patchset per bdist, only apply to bdist with
+        the same name.
         """
-        check_call(['git', 'add', '.'], cwd=target.abspath)
+        for name, abspath in self.cmds.list('cloned').items():
+            # create dir for bdist in patches if not exists
+            patches_dir = self.cfg['patches_dir']
+            if not os.path.isabs(patches_dir):
+                patches_dir = os.path.join(self.root, patches_dir)
+            targetdir = os.path.join(patches_dir, name)
+            if not os.path.isdir(patches_dir):
+                os.mkdir(patches_dir)
+            if not os.path.isdir(targetdir):
+                os.mkdir(targetdir)
+            # format-patch there
+            if Popen(['git', 'status', '--porcelain'],
+                    stdout=PIPE, cwd=abspath).communicate()[0]:
+                logger.warn('Ignoring egg with uncommitted changes: %s.' %
+                        (abspath,))
+                continue
+            tmp = Popen(['git', 'branch', '--no-color'], cwd=abspath,
+                    stdout=PIPE).communicate()[0].split('\n')
+            currentbranch = None
+            for x in tmp:
+                if x.startswith('*'):
+                    currentbranch = x.split()[1]
+                    break
+            else:
+                raise CouldNotDetectCurrentBranch
+            if currentbranch == '__mrsd_patched__': 
+                logger.error('Ignoring egg on __mrsd_patched__ branch: %s.' %
+                        (abspath,))
+                return
+            check_call(['git', 'format-patch', '-o', targetdir, 'initial..HEAD'], cwd=abspath)
 
     def apply(self):
         """Apply patches.
+
+        clone base version
+        apply patches
         """
+        for patchdir in Directory(self.patches_dir).values():
+            try:
+                self.cmds.clone(patchdir.__name__)
+            except OSError:
+                pass
+            eggdir = os.path.join(self.root, 'eggs-mrsd', patchdir.__name__)
+            try:
+                check_call(['git', 'checkout', '-b', '__mrsd_patched__',
+                    'initial'], cwd=eggdir)
+            except subprocess.CalledProcessError:
+                check_call(['git', 'checkout', 'master'], cwd=eggdir)
+                check_call(['git', 'branch', '-D', '__mrsd_patched__'], cwd=eggdir)
+                check_call(['git', 'checkout', '-b', '__mrsd_patched__',
+                    'initial'], cwd=eggdir)
+            for patch in patchdir.values():
+                check_call(['git', 'am', patch.abspath], cwd=eggdir)
 
     def __call__(self, pargs=None):
-#        for egg in eggspace if egg in self.patches:
-#            self._customize(egg)
-#            self._patch(egg, self.patches[egg.name])
-        pass
-
-    def _patch(self, egg, patches):
-        """Apply patches to egg
-        """
-        for patch in patches:
-            patch(egg)
+        if self.root is None:
+            raise NeedToBeRooted
+        patches_dir = self.cfg['patches_dir']
+        self.patches_dir = patches_dir = os.path.join(
+                self.root,
+                patches_dir,
+                )
+        if not os.path.isdir(patches_dir):
+            os.mkdir(patches_dir)
+        return pargs.action()
