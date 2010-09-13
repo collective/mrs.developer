@@ -15,25 +15,27 @@ class NotLoaded(object):
 class LazyNode(object):
     """Stuff we expect from our base of all bases
     """
-    # Are we adopting our childs or just passing them through
-    adopting = True
 
     def __init__(self, name=None):
         self.__name__ = name
+        self.__parent__ = None
         self._keys = None
+
+    def __getattr__(self, key):
+        return self[key]
 
     def __getitem__(self, key):
         try:
             val = self._keys[key]
         except TypeError:
-            # this initializes
-            self.keys()
+            self.keys() # this will load keys
             val = self._keys[key]
+        # this is what makes this node Lazy
         if val is NotLoaded:
-            val = self._createchild(key)
-            if self.adopting:
-                val.__parent__ = self
-            self._keys[key] = val
+            val = self._lazyload_child(key)
+
+        val.__parent__ = self
+        self._keys[key] = val
         return val
 
     def __iter__(self):
@@ -46,13 +48,13 @@ class LazyNode(object):
         except AttributeError:
             self._keys = odict()
             def wrap(self):
-                for key in self._iterchildkeys():
+                for key in self._lazyload_keys():
                     self._keys[key] = NotLoaded
                     yield key
             return wrap(self)
 
 
-    def _iterchildkeys(self):
+    def _lazyload_keys(self):
         """Iterate over the child keys.
 
         You have to at least ``self._keys[key] = NotLoaded``.
@@ -61,16 +63,16 @@ class LazyNode(object):
         """
         raise NotImplemented
 
-    def itervalues(self):
-        for key in self.__iter__():
-            yield self.__getitem__(key)
-
-    def _createchild(self, key):
+    def _lazyload_child(self, key):
         """factor a child for key
 
         (see also ``__getitem__``)
         """
         raise NotImplemented
+
+    def itervalues(self):
+        for key in self.__iter__():
+            yield self.__getitem__(key)
 
     def items(self):
         return [(k, self.__getitem__(k)) for k in self.__iter__()]
@@ -87,7 +89,9 @@ class LazyNode(object):
         for parent in LocationIterator(self):
             path.append(parent.__name__)
         path.reverse()
-        return path
+        if path[0] is None:
+            path[0] = ''
+        return '/'.join(path)
 
     @property
     def root(self):
