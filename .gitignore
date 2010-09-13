@@ -2,6 +2,7 @@
 *.swp
 /.installed.cfg
 /.mrsd
+/.mrsd-buildout
 /bin/
 /coverage/
 /develop-eggs/
