@@ -27,8 +27,7 @@ setup(name='mrs.developer',
       zip_safe=False,
       install_requires=[
           'setuptools',
-          # we currently ship our own argparse
-          #'argparse',
+          'cmd2',
           'odict',
           'zope.location',
       ],
@@ -40,7 +39,7 @@ setup(name='mrs.developer',
       entry_points={
           # script for everything
           'console_scripts': [
-              'mrsd = mrs.developer.console_script:mrsd',
+              'mrsd = mrs.developer.cmdline:main',
               ],
           # inject our development eggs
           'zc.buildout.extension': ['ext = mrs.developer.extensions:load'],
