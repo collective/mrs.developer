@@ -1,12 +1,9 @@
-try:
-    import cmd2 as cmd
-except:
-    import cmd
 
 import os
 import sys
 import json
 import ConfigParser
+import pprint
 
 #from mrs.developer.core import ConfigNode
 #from mrs.developer.buildout import BuildoutNode
@@ -18,105 +15,11 @@ from mrs.developer.utils import DEFAULT_CONFIG
 from mrs.developer.node import LazyNode
 
 
-class TraverseCommandNode(LazyNode):
-
-    _subcommands = {}
-    _params = None
-
-    def __init__(self, name=None):
-        if name:
-            name_list = name.split()
-            name = name_list[0]
-            self._params = name_list[1:]
-        super(TraverseCommandNode, self).__init__(name)
-        self._keys = {}
-
-    def _lazyload_keys(self):
-        return self._subcommands.keys()
-
-    def _lazyload_child(self, key):
-        return self._get_subcommand(key)
-
-    def __getitem__(self, key):
-        node = self._get_subcommand(key)
-        node.__parent__ = self
-        return node
-
-    def _get_subcommand(self, command):
-        subcommand = command.split(' ')[0]
-        if subcommand in self._subcommands:
-            return self._subcommands[subcommand](
-                            ' '.join(command[1:].split()))
 
 
-class RemoveNode(TraverseCommandNode):
-
-    def __call__(self):
-        config = self.root._config
-        for key in self.path.split('/')[1:-1]:
-            config = config[key]
-        if self._params[0] in config:
-            del config[self._params[0]]
-            save_config(self.root._config)
-            return self.__parent__['list']()
-        else:
-            raise Exception('Configuration with key "' + self._params[0] + \
-                            '" not existing. Aborting...')
 
 
-class AddNode(TraverseCommandNode):
-
-    def __call__(self):
-        config = self.root._config
-        for key in self.path.split('/')[1:-1]:
-            config = config[key]
-        if self._params[0] not in config:
-            config[self._params[0]] = self._params[1]
-            save_config(self.root._config)
-            return self.__parent__['list']()
-        else:
-            raise Exception('Configuration with key "' + self._params[0] + \
-                            '" already existing. Aborting...')
-
-
-class EditNode(TraverseCommandNode):
-
-    def __call__(self):
-        # TODO: how to accept data, for now like,
-        #       % mrsd config edit <name> <value>"
-        config = self.root._config
-        for key in self.path.split('/')[1:-1]:
-            config = config[key]
-        if self._params[0] in config:
-            config[self._params[0]] = self._params[1]
-            save_config(self.root._config)
-            return self.__parent__['list']()
-        else:
-            raise Exception('Configuration with key "' + self._params[0] + \
-                            '" not existing. Aborting...')
-
-
-class ListNode(TraverseCommandNode):
-
-    def __call__(self):
-        config = self.root._config
-        for key in self.path.split('/')[1:-1]:
-            config = config[key]
-        return json.dumps(config, indent=4)
-
-class ConfigNode(TraverseCommandNode):
-
-    _subcommands = {
-        'list':     ListNode,
-        'edit':     EditNode,
-        'add':      AddNode,
-        'remove':   RemoveNode,
-    }
-
-    def __call__(self):
-        return self._subcommands('list')()
-
-class InitBuildoutNode(TraverseCommandNode):
+class InitBuildoutNode(LazyNode):
 
     def __call__(self):
         if not os.path.exists('.installed.cfg'):
@@ -147,7 +50,8 @@ class InitBuildoutNode(TraverseCommandNode):
 
         save_config(config)
 
-    def hookin(self, path)
+    def hookin(self, path):
+        pass
     def extend(self, cp, cp_file):
         cp2 = ConfigParser.ConfigParser()
         cp2.read(cp_file)
@@ -158,95 +62,170 @@ class InitBuildoutNode(TraverseCommandNode):
         cp.read(cp_file)
 
 
-class BuildoutNode(TraverseCommandNode):
-
-    _subcommands = {
-        'init':     InitBuildoutNode,
-    }
 
 
-class InitNode(TraverseCommandNode):
 
-    def __call__(self):
-        """Create a default configuration in the current directory.
-        """
-        mode = 'buildout' # TODO: this should be passed as argument
-        if self.root._config is not None:
-            logger.error('mrsd already rooted.')
-        else:
-            config = DEFAULT_CONFIG['default'][1]
-            if mode in DEFAULT_CONFIG:
-                f = open(DEFAULT_CONFIG[mode][0], 'w+')
-                f.write(json.dumps(DEFAULT_CONFIG[mode][1], indent=4))
-                f.close()
-                config.setdefault('extends', [])
-                config['extends'].append(DEFAULT_CONFIG[mode][0])
 
-            f = open(DEFAULT_CONFIG['default'][0], 'w+')
-            f.write(json.dumps(config, indent=4))
+
+class CommandError(Exception):
+    pass
+
+
+class Cmd(LazyNode):
+
+    def __getitem__(self, key):
+        if not self._subnodes or key not in self._subnodes:
+            raise CommandError("Node/Command not implemented.")
+        if type(self._subnodes[key]) == dict:
+            class WrappedCmd(Cmd):
+                _subnodes = self._subnodes[key]
+            self._subnodes[key] = WrappedCmd(key)
+        item = super(Cmd, self).__getitem__(key)
+        item.__name__ = key
+        return item
+
+    def __call__(self, args=None):
+        default_cmd = self._subnodes.get('__default__', None)
+        if default_cmd is None:
+            raise CommandError("Command not implemented.")
+        return getattr(self, default_cmd)(args)
+
+    def __repr__(self):
+        return "%s for '%s'" % (self.__class__, ' '.join(self.path))
+
+
+def simple_cmd(cmd):
+    class SimpleCmd(Cmd):
+        __call__ = cmd
+    return SimpleCmd()
+
+
+def config_add(node, args=None):
+    config = node.root._config
+    if config is None:
+        raise CommandError('Mrsd not rooted.')
+    if not args or len(args) != 2:
+        raise CommandError('Please provide config name and value as parameters.')
+    config = config['config']
+    if args[0] not in config:
+        config[args[0]] = args[1]
+        save_config(node.root._config)
+        return call_cmd(node.root, ['config'])
+    else:
+        raise CommandError('Configuration with key "' + args[0] + \
+                            '" already exists. Aborting...')
+
+
+def config_edit(node, args=None):
+    config = node.root._config
+    if config is None:
+        raise CommandError('Mrsd not rooted.')
+    if not args or len(args) != 2:
+        raise CommandError('Please provide config name and value as parameters.')
+    config = config['config']
+    if args[0] in config:
+        config[args[0]] = args[1]
+        save_config(node.root._config)
+        return call_cmd(node.root, ['config'])
+    else:
+        raise CommandError('Configuration with key "' + args[0] + \
+                            '" not existing. Aborting...')
+
+
+def config_list(node, args=None):
+    config = node.root._config
+    if config is None:
+        raise CommandError('Mrsd not rooted.')
+    return json.dumps(config['config'], indent=4)
+
+
+def config_remove(node, args=None):
+    config = node.root._config
+    if config is None:
+        raise CommandError('Mrsd not rooted.')
+    if not args or len(args) != 1:
+        raise CommandError('Please provide config key as parameter.')
+    config = config['config']
+    if args[0] in config:
+        del config[args[0]]
+        save_config(node.root._config)
+        return call_cmd(node.root, ['config'])
+    else:
+        raise CommandError('Configuration with key "' + args[0] + \
+                            '" not existing. Aborting...')
+
+
+def core_help(node, args=None):
+    return 'Available commands: %s' % ', '.join([
+        x for x in node.root._subnodes.keys()
+            if x != '__default__'])
+
+
+def core_init(node, args=None):
+    mode = 'buildout' # TODO: this should be passed as argument
+    if node.root._config is not None:
+        return 'mrsd already rooted.'
+    else:
+        config = DEFAULT_CONFIG['default'][1]
+        if mode in DEFAULT_CONFIG:
+            f = open(DEFAULT_CONFIG[mode][0], 'w+')
+            f.write(json.dumps(DEFAULT_CONFIG[mode][1], indent=4))
             f.close()
-            logger.info('mrsd rooted.')
+            config.setdefault('extends', [])
+            config['extends'].append(DEFAULT_CONFIG[mode][0])
 
-        if mode == 'buildout':
-            self.root['buildout']['init']()
+        f = open(DEFAULT_CONFIG['default'][0], 'w+')
+        f.write(json.dumps(config, indent=4))
+        f.close()
 
-        return ''
+    #if mode == 'buildout':
+    #    ['buildout']['init']()
 
-class RootNode(TraverseCommandNode):
-
-    _subcommands = {
-        'init':     InitNode,
-        'list':     ListNode,
-        'config':   ConfigNode,
-        'buildout': BuildoutNode,
-    }
+    return 'mrsd rooted.'
 
 
-class App(cmd.Cmd):
-    """
-    """
+COMMANDS = dict(
+    __default__ = 'help',
+    init = simple_cmd(core_init),
+    help = simple_cmd(core_help),
+    config = dict(
+            __default__ = 'list',
+            add = simple_cmd(config_add),
+            edit = simple_cmd(config_edit),
+            list = simple_cmd(config_list),
+            remove = simple_cmd(config_remove),
+        ),
+)
 
-    def __init__(self, name=None):
-        """Load config and make root nodes avaliable as commands
-        """
-        self._root = RootNode()
-        self._root._config = load_config()
 
-        # make root nodes avaliable as commands
-        for key in self._root._subcommands.keys():
-            node = self._root[key]
-            setattr(self, 'do_'+key, self._do_wrap(node))
-
-        cmd.Cmd.__init__(self)
-
-    def _do_wrap(self, node):
-        class Wrapped(object):
-            def __init__(self, node):
-                self.node = node
-            def __call__(self, arg):
-                if arg:
-                    try:
-                        node = self.node[arg]
-                    except:
-                        raise Exception('Command have wrong parameters: ' + arg)
-                    print node()
-                else:
-                    print self.node()
-        return Wrapped(node)
-
-    def do_interactive(self, arg):
+def call_cmd(node, arg):
+    if len(arg) == 0:
+        return node()
+    # FIXME: this should be done better in Cmd
+    subnode = None
+    try:
+        subnode = getattr(node, arg[0], None)
+    except CommandError:
         pass
+    if subnode is None:
+        return node(arg)
+    return call_cmd(subnode, arg[1:])
 
 
 def main():
-    """
-    """
-    app = App()
-    if len(sys.argv) == 1:
-        sys.argv += ['--help', 'quit']
-    elif sys.argv[1] != 'interactive':
-        sys.argv = [sys.argv[0], ' '.join(sys.argv[1:]), 'quit']
-    app.cmdloop()
+    root = Cmd(sys.argv[0])
+    root._subnodes = COMMANDS
+    root._config = load_config()
+    result = ''
+    try:
+        result = call_cmd(root, sys.argv[1:])
+    except CommandError, e:
+        print(e)
+    else:
+        # XXX: not really sure what to do with result
+        #      for now i will just print it
+        print(result)
+
 
 if __name__ == "__main__":
     main()

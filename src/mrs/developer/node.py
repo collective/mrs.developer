@@ -16,26 +16,27 @@ class LazyNode(object):
     """Stuff we expect from our base of all bases
     """
 
+    _subnodes = None
+
     def __init__(self, name=None):
         self.__name__ = name
         self.__parent__ = None
-        self._keys = None
 
     def __getattr__(self, key):
         return self[key]
 
     def __getitem__(self, key):
         try:
-            val = self._keys[key]
+            val = self._subnodes[key]
         except TypeError:
             self.keys() # this will load keys
-            val = self._keys[key]
+            val = self._subnodes[key]
         # this is what makes this node Lazy
         if val is NotLoaded:
             val = self._lazyload_child(key)
 
         val.__parent__ = self
-        self._keys[key] = val
+        self._subnodes[key] = val
         return val
 
     def __iter__(self):
@@ -44,12 +45,12 @@ class LazyNode(object):
         prelim_data to create stubs of NotLoaded with secondary key
         """
         try:
-            return self._keys.__iter__()
+            return self._subnodes.__iter__()
         except AttributeError:
-            self._keys = odict()
+            self._subnodes = odict()
             def wrap(self):
                 for key in self._lazyload_keys():
-                    self._keys[key] = NotLoaded
+                    self._subnodes[key] = NotLoaded
                     yield key
             return wrap(self)
 
@@ -57,7 +58,7 @@ class LazyNode(object):
     def _lazyload_keys(self):
         """Iterate over the child keys.
 
-        You have to at least ``self._keys[key] = NotLoaded``.
+        You have to at least ``self._subnodes[key] = NotLoaded``.
 
         (see also ``__iter__`` and ``__getitem__``).
         """
@@ -89,9 +90,7 @@ class LazyNode(object):
         for parent in LocationIterator(self):
             path.append(parent.__name__)
         path.reverse()
-        if path[0] is None:
-            path[0] = ''
-        return '/'.join(path)
+        return path
 
     @property
     def root(self):
