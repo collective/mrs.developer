@@ -58,6 +58,7 @@ setup(name='mrs.developer',
               'patch = mrs.developer.distributions:Patch',
               'reload = mrs.developer.reload:Reload',
               'graph = mrs.developer.graph:Graph',
+              'i18ndude = mrs.developer.i18ndude:I18ndude',
           ]
       },
       )
