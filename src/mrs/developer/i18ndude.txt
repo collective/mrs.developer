@@ -1,0 +1,46 @@
+mrsd i18ndude
+=============
+
+The mrsd i18ndude command helps you to buildout your .pot and .po files
+using the i18ndude.
+
+Requirements
+------------
+
+It's required to have i18ndude somewhere installed on your machine. There
+are several place where it will be searched:
+
+- If mrsd is root, the it will be searched in the bin/ directory of the
+  buildout where mrsd is rooted.
+- It will be searched using `which` and `whereis`
+- Finally it is searched in the directory where mrsd is installed. So you
+  may just add it to the buildout where you install `mrs.developer`.
+
+Usage
+-----
+
+There are two modes using the command:
+
+Building the .pot files:
+
+Run `mrsd i18ndude --build` to build the .pot-files within the locales
+directory of the package you are currently in (pwd).
+
+Syncing the .pot and .po files:
+
+Running `mrsd i18ndude --sync` will sync the .pot files the .po file of
+every language currently existing. For creating a new language just use
+the `--languages` option.
+
+Changing the domain
+-------------------
+
+The default domain name is taken from the package name. If your package's
+name is `foo.bar` the your domain will also be `foo.bar`. You may change
+the domain with the `--domain` option, but keep in mind that it cause
+trouble to use multiple domains in the same package.
+
+Check out this blog entry by Maurits van Rees about how translations are
+done using i18ndude:
+http://maurits.vanrees.org/weblog/archive/2010/10/i18n-plone-4
+
