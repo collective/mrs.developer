@@ -255,11 +255,13 @@ class CmdSet(object):
         self.cfg = dict()
         self.cfg_file = self._find_cfg()
         self.cmds = odict()
-        self.aliases = {}
+        self.aliases = odict()
         for ep in iter_entry_points(self.entry_point_keys['commands']):
             self.cmds[ep.name] = ep.load()(ep.name, self)
         for ep in iter_entry_points(self.entry_point_keys['aliases']):
             self.aliases[ep.name] = ep.load()()
+        self.cmds.sort()
+        self.aliases.sort()
 
     def _find_cfg(self, cfg_file=os.path.abspath(DEFAULT_CFG_FILE)):
         if os.path.isfile(cfg_file):
