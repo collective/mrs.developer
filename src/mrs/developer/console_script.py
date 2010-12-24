@@ -89,7 +89,7 @@ class ConsoleScript(CmdSet):
         else:
             logger.debug(u"Running unrooted.")
         output = pargs.cmd(pargs=pargs)
-        if output:
+        if output is not None:
             print json.dumps(output, indent=4, sort_keys=True)
 
 
