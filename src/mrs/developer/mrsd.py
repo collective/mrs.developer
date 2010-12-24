@@ -307,6 +307,6 @@ class CmdSet(object):
         cfg_file = cfg_file or self.cfg_file
         cfg_file = os.path.abspath(cfg_file)
         f = open(cfg_file, 'w')
-        json.dump(self.cfg, f, indent=4)
+        json.dump(self.cfg, f, indent=4, sort_keys=True)
         f.close()
         logger.debug("Wrote config to %s." % (cfg_file,))
