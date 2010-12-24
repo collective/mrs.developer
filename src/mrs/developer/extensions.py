@@ -27,9 +27,14 @@ class LoadExtension(Extension):
     does not know about them.
     """
     def __call__(self):
+        # some wrangling to get a config file and have it loaded
         self.cmdset.cmds['init']()
+        self.cmdset.cfg_file = self.cmdset._find_cfg()
+        self.cmdset.load_config()
         if not self.mrsd_in_path():
             self.add_mrsd_part()
+        self.dumpbuildoutinfo()
+        self.cmdset.save_config()
         return
         develop = self.buildout['buildout']['develop']
         ours = self.cmdset.cfg['develop'].values()
@@ -56,6 +61,14 @@ class LoadExtension(Extension):
         parts = self.buildout['buildout']['parts'].split()
         parts.insert(0, MRSD_PART_ID)
         self.buildout['buildout']['parts'] = " ".join(parts)
+
+    def dumpbuildoutinfo(self):
+        # XXX: we always just override, next would be to save it for each run,
+        # but probably only for things we want to know, like scm revisions.
+        bo = self.cmdset.cfg['buildout'] = {}
+        bo['sources'] = {}
+        bo['sources'].update(self.buildout['sources'])
+        bo['auto-checkout'] = self.buildout['buildout']['auto-checkout'].split()
 
 
 class UnloadExtension(Extension):
