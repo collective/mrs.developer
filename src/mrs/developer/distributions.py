@@ -220,8 +220,10 @@ class Clone(Cmd):
                 return self.cmds.list()
         if type(dists) not in (tuple, list):
             dists = (dists,)
+        clones = {}
         for dist in dists:
-            self._clone(dist)
+            clones[dist] = self._clone(dist)
+        return clones
 
     def _clone(self, name):
         """clone a distribution
@@ -248,6 +250,7 @@ class Clone(Cmd):
         check_call(['git', 'commit', '-m', 'initial from: %s' % (source.abspath,)],
                 cwd=target.abspath)
         check_call(['git', 'tag', 'initial'], cwd=target.abspath)
+        return target.abspath
 
 
 class Patch(Cmd):
