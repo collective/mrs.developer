@@ -1,7 +1,12 @@
 0.0 (unreleased)
 ----------------
 
-- Nothing changed yet.
+- polishing
+  (chaoflow - 2010-12-24)
+- beginning of pygraphviz support
+  (jone - 2010-11-14)
+- plone.reload support and necessary restructuring
+  (jone - 2010-10-17)
 
 
 0 (2010-09-25)
