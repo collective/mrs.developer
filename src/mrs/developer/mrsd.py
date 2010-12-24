@@ -150,75 +150,6 @@ class Hookout(HookCmd):
     _cmd = _hookout
 
 
-class Patch(Cmd):
-    """Patch management, list, generate and apply patches on bdist eggs.
-    """
-    def _initialize(self):
-        # read a list of available patches
-        patches_dir = self.cfg['patches_dir'].setdefault('eggs-patches')
-        patches_dir = os.path.join(
-                self.root or os.curdir,
-                patches_dir,
-                )
-        for pkg in os.listdir(patches_dir):
-            self.patches[pkg] = []
-            pkg_patch_dir = os.path.join(patches_dir, pkg)
-            for patch in os.listdir(pkg_patch_dir):
-                patch = os.path.abspath(patch)
-                self.patches[pkg].append(patch)
-
-    def init_argparser(self, parser):
-        """Add our arguments to a parser
-        """
-        actions = parser.add_mutually_exclusive_group()
-        action.add_argument(
-                '--list',
-                dest='action',
-                action='store_const',
-                const=self.list,
-                help=self.list.__doc__,
-                default=True,
-                )
-        action.add_argument(
-                '--generate',
-                dest='action',
-                action='store_const',
-                const=self.generate,
-                help=self.list.__doc__,
-                default=True,
-                )
-        action.add_argument(
-                'eggspace',
-                nargs='*',
-                help='Eggspace to customize.',
-                )
-
-    def list(self, namespace):
-        """List patches for namespace.
-        """
-        return self.patches
-
-    def generate(self, namespace):
-        """Generate patches from customized bdist eggs.
-        """
-
-    def apply(self, namespace):
-        """Apply patches for namespace.
-        """
-
-    def __call__(self, pargs=None):
-#        for egg in eggspace if egg in self.patches:
-#            self._customize(egg)
-#            self._patch(egg, self.patches[egg.name])
-        pass
-
-    def _patch(self, egg, patches):
-        """Apply patches to egg
-        """
-        for patch in patches:
-            patch(egg)
-
-
 class Test(CmdWrapper):
     """Run the tests, from anywhere in your project, without the need to know
     where your testrunner lives.
@@ -233,6 +164,50 @@ class Run(CmdWrapper):
         cmd = args.pop(0)
         cmd = os.path.join('.', 'bin/', cmd)
         return [cmd] + args
+
+
+class DotDotSources(Cmd):
+    """DotDotSources, assumes all sources listed in buildout are available in
+    the parent directory and injects them before all other develop eggs.
+
+    XXX: temporary cmd with stupid name in need for proper sources management.
+    """
+    def _initialize(self):
+        self.cfg.setdefault('dotdotsources', False)
+        self.cmds.save_config()
+
+    def init_argparser(self, parser):
+        actions = parser.add_mutually_exclusive_group()
+        actions.add_argument(
+                '--status',
+                dest='action',
+                action='store_const',
+                const=self.status,
+                help=self.status.__doc__,
+                )
+        actions.add_argument(
+                '--toggle',
+                dest='action',
+                action='store_const',
+                const=self.toggle,
+                help=self.toggle.__doc__,
+                )
+        parser.set_defaults(action=self.status)
+
+    def status(self):
+        """Show status of dotdotsources
+        """
+        return self.cfg['dotdotsources']
+
+    def toggle(self):
+        """Toggle status of dotdotsources
+        """
+        self.cfg['dotdotsources'] = not self.cfg['dotdotsources']
+        self.cmds.save_config()
+        return self.cfg['dotdotsources']
+
+    def __call__(self, pargs=None):
+        return pargs.action()
 
 
 class CmdSet(object):
@@ -254,6 +229,7 @@ class CmdSet(object):
     def __init__(self):
         self.cfg = dict()
         self.cfg_file = self._find_cfg()
+        self.load_config()
         self.cmds = odict()
         self.aliases = odict()
         for ep in iter_entry_points(self.entry_point_keys['commands']):

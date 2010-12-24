@@ -1,3 +1,4 @@
+import os
 import subprocess
 
 from mrs.developer.mrsd import CmdSet
@@ -33,7 +34,8 @@ class LoadExtension(Extension):
         self.cmdset.load_config()
         if not self.mrsd_in_path():
             self.add_mrsd_part()
-        self.dumpbuildoutinfo()
+        #XXX: currently not used: self.dumpbuildoutinfo()
+        self.dotdotsources()
         self.cmdset.save_config()
         return
         develop = self.buildout['buildout']['develop']
@@ -69,6 +71,14 @@ class LoadExtension(Extension):
         bo['sources'] = {}
         bo['sources'].update(self.buildout['sources'])
         bo['auto-checkout'] = self.buildout['buildout']['auto-checkout'].split()
+
+    def dotdotsources(self):
+        if not self.cmdset.cfg['dotdotsources']:
+            return
+        for src in self.buildout['sources']:
+            dev = self.buildout['buildout']['develop']
+            src = os.path.join(os.pardir, src)
+            self.buildout['buildout']['develop'] = ' '.join((dev, src))
 
 
 class UnloadExtension(Extension):
