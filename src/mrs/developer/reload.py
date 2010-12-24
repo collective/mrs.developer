@@ -218,5 +218,3 @@ class Reload(Cmd):
 
                 if inst:
                     self.cfg['reload']['instances'].append(inst)
-
-        self.cmds.save_config()

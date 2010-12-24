@@ -27,6 +27,7 @@ class LoadExtension(Extension):
     does not know about them.
     """
     def __call__(self):
+        self.cmdset.cmds['init']()
         if not self.mrsd_in_path():
             self.add_mrsd_part()
         return
@@ -61,9 +62,10 @@ class UnloadExtension(Extension):
     """Called after config is parsed
     """
     def __call__(self):
-        self.cmdset.cmds['init']()
+        self.cmdset.load_config()
         self.cmdset.cmds['hookin']()
         self.cmdset.cmds['reload']._configure(self.buildout)
+        self.cmdset.save_config()
 
 
 def load(buildout=None):
