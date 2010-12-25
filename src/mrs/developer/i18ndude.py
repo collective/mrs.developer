@@ -91,7 +91,7 @@ class I18ndude(Cmd):
             return 'en'
 
         for dir in os.listdir(locales_dir):
-            if os.path.isdir(dir):
+            if os.path.isdir(os.path.join(locales_dir, dir)):
                 if os.path.isfile(os.path.join(
                         locales_dir, dir, 'LC_MESSAGES', '%s.po' % domain)):
                     languages.append(dir)
