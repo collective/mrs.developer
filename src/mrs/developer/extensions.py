@@ -69,13 +69,23 @@ class LoadExtension(Extension):
         # but probably only for things we want to know, like scm revisions.
         bo = self.cmdset.cfg['buildout'] = {}
         bo['sources'] = {}
-        bo['sources'].update(self.buildout['sources'])
-        bo['auto-checkout'] = self.buildout['buildout']['auto-checkout'].split()
+        try:
+            bo['sources'].update(self.buildout['sources'])
+            bo['auto-checkout'] = self.buildout['buildout']['auto-checkout'].split()
+        except KeyError:
+            #XXX: probably we should say something
+            pass
 
     def dotdotsources(self):
         if not self.cmdset.cfg['dotdotsources']:
+            #XXX: probably we should say something
             return
-        for src in self.buildout['sources']:
+        try:
+            sources = self.buildout['sources']
+        except KeyError:
+            #XXX: probably we should say something
+            return
+        for src in sources:
             dev = self.buildout['buildout']['develop']
             src = os.path.join(os.pardir, src)
             self.buildout['buildout']['develop'] = ' '.join((dev, src))
