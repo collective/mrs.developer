@@ -4,12 +4,12 @@ Sources and Packages and Eggs
 Terminology
 -----------
 
-Based on to http://guide.python-distribute.org/.
+Based on to https://guide.python-distribute.org/.
 
 A Source is the source for packages:
 
     - directory on the filesystem (``~.buildout/eggs/``, ``./eggs/``)
-    - pypi (``http://pypi.python.org/simple``)
+    - pypi (``https://pypi.python.org/simple``)
 
 A package has releases.
 
